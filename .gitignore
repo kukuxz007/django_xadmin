@@ -1,0 +1,8 @@
+__pycache__/
+.env
+*.pyc
+migrations/
+readme.txt
+k_collect_static/
+k_static/
+k_media/

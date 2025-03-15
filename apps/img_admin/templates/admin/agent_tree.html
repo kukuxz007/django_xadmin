@@ -1,0 +1,204 @@
+{% extends 'xadmin/base_site.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>{{ title }}</h2>
+    <form method="get" class="form-inline mb-3" id="month-form">
+        <div class="form-group mr-2">
+            <label for="month-select" class="mr-2">选择月份：</label>
+            <select name="month" id="month-select" class="form-control">
+                {% for year, month, display in months %}
+                    <option value="{{ year }}-{{ month }}" {% if selected_date == display %}selected{% endif %}>
+                        {{ display }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+    <div id="commission-info"></div>
+    <div id="tree"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.16.0/d3.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var commissionSetting = JSON.parse('{{ commission_setting|safe }}');
+    var selectedDate = '{{ selected_date }}';
+
+    function updateTree(agentsData) {
+        console.log("Updating tree with data:", agentsData);
+
+        // 清除现有的树
+        d3.select("#tree").selectAll("*").remove();
+
+        // 显示佣金设置信息
+        var commissionInfo = d3.select("#commission-info")
+            .html("")
+            .append("p")
+            .text(`一级佣金率: ${commissionSetting.first_level_rate}%, 二级佣金率: ${commissionSetting.second_level_rate}%, 选定月份: ${selectedDate}`);
+
+        // 设置树状图的尺寸
+        var margin = {top: 10, right: 100, bottom: 10, left: 100},
+            width = 1600 - margin.right - margin.left,
+            height = 2400 - margin.top - margin.bottom;
+
+        var tree = d3.tree().size([height, width]);
+
+        var svg = d3.select("#tree").append("svg")
+            .attr("width", width + margin.right + margin.left)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        // 创建层次结构
+        var root = d3.hierarchy({name: "Root", children: agentsData});
+        tree(root);
+
+        // 添加连接线
+        var link = svg.selectAll(".link")
+            .data(root.descendants().slice(1))
+            .enter().append("path")
+            .attr("class", "link")
+            .attr("d", function(d) {
+                return "M" + d.y + "," + d.x
+                    + "C" + (d.y + d.parent.y) /2 + "," + d.x
+                    + " " + (d.y + d.parent.y) / 2 + "," + d.parent.x
+                    + " " + d.parent.y + "," + d.parent.x;
+            });
+
+        // 添加节点
+        var node = svg.selectAll(".node")
+            .data(root.descendants())
+            .enter().append("g")
+            .attr("class", function(d) { return "node" + (d.children ? " node--internal" : " node--leaf"); })
+            .attr("transform", function(d) { return "translate(" + d.y + "," + d.x + ")"; });
+
+        node.append("circle")
+            .attr("r",5);
+
+            node.append("text")
+            .attr("dy", "-0.8em")
+            .attr("x", function(d) { return d.children ? 0 : 0; })
+            .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
+            .text(function(d) { 
+                let text = `${d.data.name}`; // 始终显示名称
+        // if (d.data.sales > 0) {
+        //     text += `(销售:${d.data.sales.toFixed(2)})`;
+        // }
+        // if (d.data.first_level_commission > 0) {
+        //     text += `(一级: ${d.data.first_level_commission.toFixed(2)})`;
+        // }
+        // if (d.data.second_level_commission > 0) {
+        //     text += `(二级: ${d.data.second_level_commission.toFixed(2)})`;
+        // }
+        // if (d.data.third_level_commission > 0) {
+        //     text += `(三级: ${d.data.third_level_commission.toFixed(2)})`;
+        // }
+        return text; 
+            //     if (d.data.sales == 0 && d.data.first_level_commission == 0 && d.data.second_level_commission == 0) {
+            //   return `${d.data.name}`;
+            //     } else {
+            //     return `${d.data.name};销售额:${d.data.sales ? d.data.sales.toFixed(2) : '0.00'};一级佣金: ${d.data.first_level_commission ? d.data.first_level_commission.toFixed(2) : '0.00'};二级佣金: ${d.data.second_level_commission ? d.data.second_level_commission.toFixed(2) : '0.00'}`; 
+            //     }
+            });
+        
+        // 添加代理商名称
+        node.append("text")
+            .attr("dy", "1.3em")
+            .attr("x", function(d) { return d.children ? 0 : 0; })
+            .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
+            .text(function(d) { 
+                let text = ``; // 始终显示名称
+        if (d.data.sales > 0) {
+            text += `(销售:${d.data.sales.toFixed(2)})`;
+        }
+        if (d.data.first_level_commission > 0) {
+            text += `(一级: ${d.data.first_level_commission.toFixed(2)})`;
+        }
+        if (d.data.second_level_commission > 0) {
+            text += `(二级: ${d.data.second_level_commission.toFixed(2)})`;
+        }
+        if (d.data.third_level_commission > 0) {
+            text += `(三级: ${d.data.third_level_commission.toFixed(2)})`;
+        }
+        return text; 
+            //     if (d.data.sales == 0 && d.data.first_level_commission == 0 && d.data.second_level_commission == 0) {
+            //   return `${d.data.name}`;
+            //     } else {
+            //     return `${d.data.name};销售额:${d.data.sales ? d.data.sales.toFixed(2) : '0.00'};一级佣金: ${d.data.first_level_commission ? d.data.first_level_commission.toFixed(2) : '0.00'};二级佣金: ${d.data.second_level_commission ? d.data.second_level_commission.toFixed(2) : '0.00'}`; 
+            //     }
+            });
+
+        // 添加销售额信息
+   
+        // node.append("text")
+        //     .attr("dy", "-1.3em")
+        //     .attr("x", function(d) { return d.children ? -13 : 13; })
+        //     .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
+        //     .text(function(d) { return `销售额: ${d.data.sales ? d.data.sales.toFixed(2) : '0.00'}`; });
+
+        // 添加一级佣金信息
+        // node.append("text")
+        //     .attr("dy", "0em")
+        //     .attr("x", function(d) { return d.children ? -13 : 13; })
+        //     .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
+        //     .text(function(d) { return `一级佣金: ${d.data.first_level_commission ? d.data.first_level_commission.toFixed(2) : '0.00'}`; });
+
+        // // 添加二级佣金信息
+        // node.append("text")
+        //     .attr("dy", "1.3em")
+        //     .attr("x", function(d) { return d.children ? -13 : 13; })
+        //     .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
+        //     .text(function(d) { return `二级佣金: ${d.data.second_level_commission ? d.data.second_level_commission.toFixed(2) : '0.00'}`; });
+
+        // // 添加总佣金信息
+        // node.append("text")
+        //     .attr("dy", "2.6em")
+        //     .attr("x", function(d) { return d.children ? -13 : 13; })
+        //     .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
+        //     .text(function(d) { return `总佣金: ${d.data.commission ? d.data.commission.toFixed(2) : '0.00'}`; });
+    }
+
+    // 初始加载
+    updateTree(JSON.parse('{{ agent_tree|safe }}'));
+
+    // 监听月份选择变化
+    $('#month-select').on('change', function() {
+        var selectedMonth = $(this).val();
+        $.ajax({
+            url: '{{ agent_tree_url }}',  // 使用后端传递的 URL
+            data: { month: selectedMonth },
+            dataType: 'json',
+            success: function(response) {
+                selectedDate = response.selected_date;
+                updateTree(response.agent_tree);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error fetching data:", error);
+            }
+        });
+    });
+});
+</script>
+<style>
+    .node circle {
+      fill: #fff;
+      stroke: steelblue;
+      stroke-width: 3px;
+    }
+
+    .node text {
+      font: 12px sans-serif;
+    }
+
+    .link {
+      fill: none;
+      stroke: #ccc;
+      stroke-width: 2px;
+    }
+</style>
+{% endblock %}
